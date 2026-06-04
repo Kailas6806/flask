@@ -39,7 +39,7 @@ class TelegramNotifier:
             return
         self._initialized = True
 
-import os
+        import os
 
         # Read secrets — graceful fallback
         self._token: Optional[str] = None
