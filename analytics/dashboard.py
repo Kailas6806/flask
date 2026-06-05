@@ -85,12 +85,24 @@ def render_analytics_tab(journal: Any) -> None:
     st.markdown(_CARD_CSS, unsafe_allow_html=True)
 
     # ── Header row with title + reset button ──
-    hdr_col, reset_col = st.columns([4, 1])
+    hdr_col, days_col, reset_col = st.columns([3, 1, 1])
     with hdr_col:
         st.markdown("## 📊 Trade Analytics")
+    with days_col:
+        timeframe = st.selectbox(
+            "Timeframe",
+            ["7 Days", "30 Days", "All Time"],
+            index=2,
+            label_visibility="collapsed"
+        )
+        if timeframe == "7 Days":
+            days = 7
+        elif timeframe == "30 Days":
+            days = 30
+        else:
+            days = 36500  # practically all time
     with reset_col:
-        st.write("")
-        if st.button("🗑️ Reset Journal", key="reset_journal", use_container_width=True,
+        if st.button("🗑️ Reset", key="reset_journal", use_container_width=True,
                       help="Clear all trade journal entries"):
             st.session_state["_confirm_reset_journal"] = True
 
@@ -111,8 +123,15 @@ def render_analytics_tab(journal: Any) -> None:
                 st.session_state["_confirm_reset_journal"] = False
                 st.rerun()
 
-    analytics: Dict[str, Any] = journal.get_analytics(days=7)
-    all_trades: List[Dict[str, Any]] = journal.get_all_trades()
+    analytics: Dict[str, Any] = journal.get_analytics(days=days)
+    
+    if days < 36500:
+        import datetime
+        from config import IST
+        cutoff = datetime.datetime.now(tz=IST) - datetime.timedelta(days=days)
+        all_trades = journal._filter_since(cutoff)
+    else:
+        all_trades: List[Dict[str, Any]] = journal.get_all_trades()
 
     if not all_trades:
         st.info(
