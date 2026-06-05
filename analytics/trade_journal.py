@@ -39,6 +39,7 @@ class TradeJournal:
         self.journal_path: str = journal_path or JOURNAL_FILE
         self.trades: List[Dict[str, Any]] = []
         self._load()
+        self._import_from_csv()
 
     # ------------------------------------------------------------------ #
     #  Public API                                                         #
@@ -202,8 +203,7 @@ class TradeJournal:
     def get_all_trades(self) -> List[Dict[str, Any]]:
         """Return a copy of every trade in the journal."""
         with self._lock:
-            if not self.trades:
-                self._load()
+            self._load()
             return list(self.trades)
 
     def get_trades_for_date(self, date_str: str) -> List[Dict[str, Any]]:
@@ -213,6 +213,7 @@ class TradeJournal:
             date_str: Date in ``YYYY-MM-DD`` format.
         """
         with self._lock:
+            self._load()
             results: List[Dict[str, Any]] = []
             for t in self.trades:
                 recorded_at = t.get("recorded_at", "")
@@ -231,8 +232,7 @@ class TradeJournal:
             current_streak, consecutive_losses.
         """
         with self._lock:
-            if not self.trades:
-                self._load()
+            self._load()
             cutoff = datetime.now(tz=IST) - timedelta(days=days)
             trades = self._filter_since(cutoff)
 
@@ -370,7 +370,7 @@ class TradeJournal:
             logger.error("Failed to save journal: %s", exc)
 
     def _load(self) -> None:
-        """Read the journal list from the JSON file and import closed trades from CSV logs."""
+        """Read the journal list from the JSON file."""
         self.trades = []
         if os.path.isfile(self.journal_path):
             try:
@@ -378,7 +378,7 @@ class TradeJournal:
                     data = json.load(fh)
                 if isinstance(data, list):
                     self.trades = data
-                    logger.info("Loaded %d trades from journal", len(self.trades))
+                    logger.debug("Loaded %d trades from journal", len(self.trades))
                 else:
                     logger.warning("Journal file is not a list — starting fresh")
             except (json.JSONDecodeError, OSError) as exc:
@@ -394,7 +394,8 @@ class TradeJournal:
             self.trades = deduped
             self._save()
 
-        # Proactively import missing closed trades from daily CSV logs
+    def _import_from_csv(self) -> None:
+        """Proactively import missing closed trades from daily CSV logs."""
         try:
             import glob
             import pandas as pd
